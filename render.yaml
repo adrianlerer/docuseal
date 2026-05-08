@@ -1,0 +1,62 @@
+services:
+  - type: web
+    name: docuseal
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    preDeployCommand: "cd /app && bundle exec rails db:migrate"
+    healthCheckPath: /
+    disk:
+      name: docuseal-data
+      mountPath: /data/docuseal
+      sizeGB: 10
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: RAILS_SERVE_STATIC_FILES
+        value: "true"
+      - key: WORKDIR
+        value: /data/docuseal
+      - key: VIPS_MAX_COORD
+        value: "17000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: docuseal-db
+          property: connectionString
+      - key: REDIS_URL
+        sync: false
+      - key: SECRET_KEY_BASE
+        generateValue: true
+
+  - type: worker
+    name: docuseal-sidekiq
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerCommand: "/bin/sh -c 'cd /app && bundle exec sidekiq -C config/sidekiq.yml'"
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: WORKDIR
+        value: /data/docuseal
+      - key: DATABASE_URL
+        fromDatabase:
+          name: docuseal-db
+          property: connectionString
+      - key: REDIS_URL
+        sync: false
+      - key: SECRET_KEY_BASE
+        fromService:
+          name: docuseal
+          type: web
+          envVarKey: SECRET_KEY_BASE
+
+databases:
+  - name: docuseal-db
+    databaseName: docuseal
+    user: docuseal
+    plan: starter
